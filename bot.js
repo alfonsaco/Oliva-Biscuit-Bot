@@ -1,5 +1,9 @@
-const { Telegraf } =require('telegraf'); // Importación correcta
-require('dotenv').config(); // Cargar variables de entorno
+const { Telegraf }=require('telegraf');
+require('dotenv').config();
+
+// Variables para las imágenes de la lucha
+const path=require('path');
+const fs=require('fs');
 
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
@@ -12,6 +16,7 @@ function resetPoleDiaria() {
     const ahora=new Date();
     const proximoReset=new Date(ahora);
 
+    hizoPole.clear();
 }
 
 // Comandos básicos
@@ -22,7 +27,7 @@ bot.start((ctx) =>
 bot.help((ctx) => 
     ctx.reply(`Lista de <b>comandos</b> del Bot @OlivaBiscuitBot:
 /help - obtener ayuda
-/fight - luchar contra Biscuit Oliva
+/fight - lucha contra Biscuit Oliva
 /resetpole - comando de prueba
 /reflexion - Oliva te inspira con una frase motivacional
 /rutina - muestra las mejores rutinas de gimnasio de Oliva
@@ -44,12 +49,44 @@ bot.telegram.setMyCommands([
 
 
 // FUNCIÓN DE LUCHA
+// Rutas absolutas
+const ataquesOliva = [
+    { imagen: path.resolve(__dirname, 'Images/bola.jpg'), texto: 'Oliva usa su ataque Bola' },
+    { imagen: path.resolve(__dirname, 'Images/bolsillos.png'), texto: 'Oliva se mete la mano en los bolsillos y te da tremenda paliza' },
+    { imagen: path.resolve(__dirname, 'Images/cabezazo.jpg'), texto: 'Oliva te proporciona un cabezazo terrible' }
+];
+
+// Función de lucha
 bot.command('fight', (ctx) => {
-    ctx.reply('COMIENZA LA LUCHA');
+    ctx.reply('¡COMIENZA LA LUCHA!');
 
-    cont=0;
+    let contTurno=0;
 
+    let olivaGana=0;
+    let jugadorGana=0;
 
+    while (contTurno < 5) {
+        const randomAtaqueOliva = Math.floor(Math.random()*ataquesOliva.length);
+        const resultadoTurno = Math.floor(Math.random()*2);
+
+        if (resultadoTurno === 1) {
+            try {
+                const fileStream=fs.createReadStream(ataquesOliva[randomAtaqueOliva].imagen);
+                ctx.replyWithPhoto({ source: fileStream }, { caption: ataquesOliva[randomAtaqueOliva].texto });
+
+            } catch (error) {
+                ctx.reply('¡Error al cargar el ataque de Oliva!');
+            }
+            olivaGana++;
+
+        } else {
+            ctx.reply('¡CONSIGUES ATINARLE UN CATE AL OLIVA!');
+            jugadorGana++;
+
+        }
+
+        contTurno++;
+    }
 });
 
 
@@ -71,6 +108,8 @@ bot.hears(['Yugor','yugor'], (ctx) => {
 */
 // ArrayList de Usuarios
 let usuarios=[];
+// Set para evitar que los usuarios que hayan hehco una pole, subpole o fail, puedan volver a hacerla en el mismo día
+let hizoPole=new Set();
 // Función que sirve para añadir los usuarios y sus puntos al ArrayList
 function agregarPuntos(id, gigapuntos, nombre) {
     const usuario = usuarios.find(u => u.id === id);
@@ -91,66 +130,83 @@ bot.command('resetpole', (ctx) => {
     poleHecha=false;
     subpoleHecha=false;
     failHecho=false;
+    hizoPole.clear();
     ctx.reply('Pole restaurada');
 });
 
 // POLE
 bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
-    if(poleHecha === false) {
-        const username=ctx.from.username;
-        const nombre=ctx.from.first_name;
-        const usuario=ctx.from.id;
+    const usuario=ctx.from.id;
 
-        if(username) {
-            ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
-            poleHecha=true;
-            agregarPuntos(usuario, 3, nombre);
+    if(!hizoPole.has(usuario)) {
+        hizoPole.add(usuario);
 
-        } else {
-            ctx.reply(`El usuario ${ctx.from.first_name} ha hecho la *pole*`, {parse_mode: 'Markdown'});
-            poleHecha=true;
-            agregarPuntos(usuario, 3, nombre);
+        if(poleHecha === false) {
+            const username=ctx.from.username;
+            const nombre=ctx.from.first_name;
+
+            if(username) {
+                ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+                poleHecha=true;
+                agregarPuntos(usuario, 3, nombre);
+    
+            } else {
+                ctx.reply(`El usuario ${ctx.from.first_name} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+                poleHecha=true;
+                agregarPuntos(usuario, 3, nombre);
+            }
         }
     }
 });
 
 // SUBPOLE
 bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
-    if(subpoleHecha === false) {
-        const username=ctx.from.username;
-        const nombre=ctx.from.first_name;
-        const usuario=ctx.from.id;
+    const usuario=ctx.from.id;
 
-        if(username) {
-            ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
-            subpoleHecha=true;
-            agregarPuntos(usuario, 1, nombre);
+    if(!hizoPole.has(usuario)) {
+        hizoPole.add(usuario);
 
-        } else {
-            ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
-            subpoleHecha=true;
-            agregarPuntos(usuario, 1, nombre);
+        if(subpoleHecha === false) {
+            const username=ctx.from.username;
+            const nombre=ctx.from.first_name;
+            
+            if(username) {
+                ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+                subpoleHecha=true;
+                agregarPuntos(usuario, 1, nombre);
+    
+            } else {
+                ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+                subpoleHecha=true;
+                agregarPuntos(usuario, 1, nombre);
+            }
         }
     }
+
 });
 
 // FAIL
 bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
-    if(failHecho === false) {
-        const username=ctx.from.username;
-        const nombre=ctx.from.first_name;
-        const usuario=ctx.from.id;
+    const usuario=ctx.from.id;
 
-        if(username) {
-            ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
-            subpoleHecha=true;
-            agregarPuntos(usuario, 0.5, nombre);
+    if(!hizoPole.has(usuario)) {
+        hizoPole.add(usuario);
 
-        } else {
-            ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
-            subpoleHecha=true;
-            agregarPuntos(usuario, 0.5, nombre);
-
+        if(failHecho === false) {
+            const username=ctx.from.username;
+            const nombre=ctx.from.first_name;
+            
+            if(username) {
+                ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+                subpoleHecha=true;
+                agregarPuntos(usuario, 0.5, nombre);
+    
+            } else {
+                ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+                subpoleHecha=true;
+                agregarPuntos(usuario, 0.5, nombre);
+    
+            }
         }
     }
 });
