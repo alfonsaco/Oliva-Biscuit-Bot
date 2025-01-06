@@ -5,6 +5,8 @@ require('dotenv').config(); // Cargar variables de entorno
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
 
 let poleHecha=false;
+let subpoleHecha=false;
+let failHecho=false;
 
 function resetPoleDiaria() {
     const ahora=new Date();
@@ -25,12 +27,12 @@ bot.help((ctx) =>
     /polerank - ranking de las poles`
     , {parse_mode: 'HTML'})
 );
+// Para que salgan todos los posibles comandos al usuario
+bot.telegram.setMyCommands
 
-bot.command('resetpole', (ctx) => {
-    poleHecha=false;
-    ctx.reply('Pole restaurada');
-});
 
+
+// FUNCIÓN DE LUCHA
 bot.command('fight', (ctx) => {
     ctx.reply('COMIENZA LA LUCHA');
 
@@ -39,6 +41,9 @@ bot.command('fight', (ctx) => {
 
 });
 
+
+
+// HEARS
 bot.hears(['hola','Hola','HOLA'], (ctx) => {
     ctx.reply(`Hola @${ctx.from.username}, ¿Qué tal? Soy Biscuit Oliva, el hombre más fuerte de América.`);
     console.log(ctx.from.id);
@@ -46,6 +51,8 @@ bot.hears(['hola','Hola','HOLA'], (ctx) => {
 bot.hears(['Yugor','yugor'], (ctx) => {
     ctx.reply('Hola Maestro Yugor @asistentelink');
 });
+
+
 
 // FUNCIÓN DE POLE
 /* A las 00:00, los usuarios podrán hacer pole y ganar puntos
@@ -56,7 +63,7 @@ bot.hears(['Yugor','yugor'], (ctx) => {
 // ArrayList de Usuarios
 let usuarios=[];
 // Función que sirve para añadir los usuarios y sus puntos al ArrayList
-function agregarPuntos(id, gigapuntos, username) {
+function agregarPuntos(id, gigapuntos, nombre) {
     const usuario = usuarios.find(u => u.id === id);
 
     if (usuario) {
@@ -67,66 +74,123 @@ function agregarPuntos(id, gigapuntos, username) {
         }
         usuario.valores.push(gigapuntos);
     } else {
-        usuarios.push({ id: id, usuario: username, valores: [gigapuntos] });
+        usuarios.push({ id: id, nombre: nombre, valores: [gigapuntos] });
         console.log('Usuario añadido:', { id, valores: [gigapuntos] });
     }
 }
+bot.command('resetpole', (ctx) => {
+    poleHecha=false;
+    subpoleHecha=false;
+    failHecho=false;
+    ctx.reply('Pole restaurada');
+});
 // POLE
 bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
     if(poleHecha === false) {
         const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
         const usuario=ctx.from.id;
 
         if(username) {
             ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
             poleHecha=true;
-            agregarPuntos(usuario, 3, username);
+            agregarPuntos(usuario, 3, nombre);
 
         } else {
             ctx.reply(`El usuario ${ctx.from.first_name} ha hecho la *pole*`, {parse_mode: 'Markdown'});
             poleHecha=true;
-            agregarPuntos(usuario, 3, username);
+            agregarPuntos(usuario, 3, nombre);
         }
     }
 });
 // SUBPOLE
 bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
-    const username=ctx.from.username;
+    if(subpoleHecha === false) {
+        const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
+        const usuario=ctx.from.id;
 
-    if(username) {
-        ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
-    } else {
-        ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+        if(username) {
+            ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+            subpoleHecha=true;
+            agregarPuntos(usuario, 1, nombre);
+
+        } else {
+            ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+            subpoleHecha=true;
+            agregarPuntos(usuario, 1, nombre);
+        }
     }
 });
 // FAIL
 bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
-    const username=ctx.from.username;
+    if(failHecho === false) {
+        const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
+        const usuario=ctx.from.id;
 
-    if(username) {
-        ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
-    } else {
-        ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+        if(username) {
+            ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+            subpoleHecha=true;
+            agregarPuntos(usuario, 0.5, nombre);
+
+        } else {
+            ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+            subpoleHecha=true;
+            agregarPuntos(usuario, 0.5, nombre);
+
+        }
     }
 });
 // POLERANK
 bot.command('polerank', (ctx) => {
-    let mensaje='RANKING DE LAS POLES';
+    if(usuarios.length == 0) {
+        ctx.reply('*Nadie ha hecho ninguna pole todavía*', {parse_mode: 'Markdown'});
 
-    usuarios.forEach(u => {
-        let nombreUsuario=u.username;
-        let totalPuntos=0;
-
-        u.valores.forEach(valor => {
-            totalPuntos+=valor;
+    } else {
+        let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n---------------------------------------------------';
+        let puntuacionMax=[]
+    
+        usuarios.forEach(u => {
+            let nombreUsuario=u.nombre;
+            let totalPuntos=0;
+    
+            u.valores.forEach(valor => {
+                totalPuntos+=valor;
+            });
+    
+            puntuacionMax.push({nombre: nombreUsuario, total: totalPuntos});
+            //mensaje+=`\n*${nombreUsuario}* = ${totalPuntos} Giga-Puntos`;
         });
+    
+        // Ordenamos los usuarios de mayor a menos número de puntos
+        puntuacionMax.sort((a, b) => b.total - a.total);
+        contRank=0;
+    
+        puntuacionMax.forEach(t => {
+            contRank++;
+            
+            switch(contRank) {
+                case 1:
+                    mensaje+=`\n1️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
+                    break;
+                case 2:
+                    mensaje+=`\n2️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
+                    break;
+                case 3:
+                    mensaje+=`\n3️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
+                    break;
+                default:
+                    mensaje+=`\n🆗 *${t.nombre}* = ${t.total} Giga-Puntos`;
+                    break;
+            }   
+        });
+    
+        ctx.reply(mensaje, {parse_mode: 'Markdown'});
+    }
 
-        mensaje+=`\n*${nombreUsuario}* ${totalPuntos} = Giga-Puntos`;
-    });
-
-    console.log(usuarios);
-    ctx.reply(mensaje, {parse_mode: 'Markdown'});
 });
+
 
 
 /* Funcionalidades a agregar:
