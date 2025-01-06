@@ -16,24 +16,30 @@ function resetPoleDiaria() {
 
 // Comandos básicos
 bot.start((ctx) => 
-    ctx.reply('¡Hola! Soy tu bot de Telegram.')
+    ctx.reply('Buenas tardes, soy Biscuit Oliva, el hombre más fuerte de América')
 );
 
 bot.help((ctx) => 
     ctx.reply(`Lista de <b>comandos</b> del Bot @OlivaBiscuitBot:
-    /help - obtener ayuda
-    /fight - luchar contra Biscuit Oliva
-    /resetpole - comando de prueba
-    /polerank - ranking de las poles`
+/help - obtener ayuda
+/fight - luchar contra Biscuit Oliva
+/resetpole - comando de prueba
+/reflexion - Oliva te inspira con una frase motivacional
+/rutina - muestra las mejores rutinas de gimnasio de Oliva
+
+Cada día, podrás hacer una <b>pole</b>, <b>subpole</b> o <b>fail</b>. Estas se resetean a las 00:00.
+/polerank - ranking de las poles`
     , {parse_mode: 'HTML'})
 );
+
 // Para que salgan todos los posibles comandos al usuario
 bot.telegram.setMyCommands([
     {command: 'start', description: 'Inicia el bot Oliva'},
     {command: 'help', description: 'Muestra la lista de comandos'},
     {command: 'fight', description: 'Pelea contra Biscuit Oliva'},
     {command: 'polerank', description: 'Muestra el ranking de Poles'},
-    {command: 'reflexion', description: 'Muestra una frase motivacional 🗿'}
+    {command: 'reflexion', description: 'Muestra una frase motivacional 🗿'},
+    {command: 'rutina', description: 'Biscuit Oliva te enseña una rutina de gimnasio para ponerte igual de fuerte que él'}
 ]);
 
 
@@ -215,16 +221,104 @@ frasesMotivacionales = [
 
 bot.command('reflexion', (ctx) => {
     numero=Math.floor(Math.random()*frasesMotivacionales.length);
-    ctx.reply(`_"${frasesMotivacionales[numero]}"_`, {parse_mode: 'Markdown'});
+    ctx.reply(`_"${frasesMotivacionales[numero]}"_`, {parse_mode: 'MarkdownV2'});
 });
 
 
-/* Funcionalidades a agregar:
- - Frases motivacionales de Biscuit Oliva
- - Pole, subpole...
- - Rutinas de gym de Biscuit Oliva
+// RUTINAS
+listaRutinas = [
+    // PPL
+    `*PUSH PULL LEGS (PPL):*
+    Día 1 - Push (Pecho, Hombros, Tríceps):
+    - Press banca con barra (4x8-12)
+    - Press inclinado con mancuernas (4x10-12)
+    - Fondos en paralelas (3x hasta el fallo)
+    - Press militar (4x8-10)
+    - Elevaciones laterales (4x12-15)
+    - Extensiones de tríceps en polea (3x12-15)
 
-*/
+    Día 2 - Pull (Espalda, Bíceps, Trapecios):
+    - Dominadas (4x8-12)
+    - Remo con barra (4x10-12)
+    - Jalón al pecho (4x12)
+    - Pull-over con mancuerna (4x12)
+    - Curl de bíceps con barra (4x10)
+    - Curl martillo (3x12)
+    - Encogimientos para trapecios (4x15)
+
+    Día 3 - Legs (Piernas y core):
+    - Sentadilla con barra (4x8-12)
+    - Prensa inclinada (4x10-12)
+    - Peso muerto rumano (4x8-10)
+    - Zancadas con mancuernas (3x12 por pierna)
+    - Extensiones de piernas en máquina (4x12-15)
+    - Elevaciones de gemelos de pie (4x15-20)
+    - Plancha abdominal (3x1 minuto)`,
+
+    // ARNOLD
+    `*ARNOLD SPLIT:*
+    Día 1 - Pecho y Espalda:
+    - Press banca con barra (4x8-12)
+    - Aperturas con mancuernas (4x12)
+    - Dominadas (4x8-12)
+    - Remo con barra (4x10-12)
+    - Jalón al pecho (4x12)
+    - Pull-over con mancuerna (4x12)
+
+    Día 2 - Hombros y Brazos:
+    - Press militar con barra (4x8-10)
+    - Elevaciones laterales con mancuernas (4x12-15)
+    - Pájaros para deltoides posteriores (4x12-15)
+    - Curl con barra (4x10)
+    - Curl martillo (4x12)
+    - Extensiones de tríceps en polea (3x12-15)
+    - Press francés (3x12)
+
+    Día 3 - Piernas y Core:
+    - Sentadilla con barra (4x8-12)
+    - Peso muerto rumano (4x8-10)
+    - Zancadas con mancuernas (3x12 por pierna)
+    - Prensa inclinada (4x10-12)
+    - Extensiones de piernas en máquina (4x12-15)
+    - Curl femoral en máquina (4x12-15)
+    - Elevaciones de gemelos (4x15-20)
+    - Plancha abdominal (3x1 minuto)`,
+
+    // FULL BODY
+    `*FULL BODY:*
+    Día 1:
+    - Sentadilla con barra (4x8-12)
+    - Press banca con barra (4x8-12)
+    - Remo con barra (4x10-12)
+    - Dominadas (3x hasta el fallo)
+    - Press militar (4x8-10)
+    - Curl de bíceps con barra (4x10)
+    - Extensiones de tríceps en polea (3x12)
+
+    Día 2:
+    - Peso muerto (4x8-10)
+    - Press inclinado con mancuernas (4x10-12)
+    - Remo con mancuernas (4x12)
+    - Fondos en paralelas (3x hasta el fallo)
+    - Elevaciones laterales con mancuernas (4x12-15)
+    - Curl martillo (3x12)
+    - Plancha abdominal (3x1 minuto)
+
+    Día 3:
+    - Prensa inclinada (4x10-12)
+    - Pull-over con mancuerna (4x12)
+    - Sentadilla frontal (4x8-10)
+    - Dominadas lastradas (4x8-12)
+    - Encogimientos para trapecios (4x15)
+    - Curl concentrado (3x12 por brazo)
+    - Elevaciones de gemelos (4x15-20)`
+];
+
+bot.command('rutina', (ctx) => {
+    numero=Math.floor(Math.random()*listaRutinas.length);
+    ctx.reply(`${listaRutinas[numero]}`, {parse_mode: 'Markdown'});
+});
+
 
 // Iniciar el bot
 bot.launch();
