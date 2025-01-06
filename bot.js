@@ -28,8 +28,13 @@ bot.help((ctx) =>
     , {parse_mode: 'HTML'})
 );
 // Para que salgan todos los posibles comandos al usuario
-bot.telegram.setMyCommands
-
+bot.telegram.setMyCommands([
+    {command: 'start', description: 'Inicia el bot Oliva'},
+    {command: 'help', description: 'Muestra la lista de comandos'},
+    {command: 'fight', description: 'Pelea contra Biscuit Oliva'},
+    {command: 'polerank', description: 'Muestra el ranking de Poles'},
+    {command: 'reflexion', description: 'Muestra una frase motivacional 🗿'}
+]);
 
 
 // FUNCIÓN DE LUCHA
@@ -42,7 +47,6 @@ bot.command('fight', (ctx) => {
 });
 
 
-
 // HEARS
 bot.hears(['hola','Hola','HOLA'], (ctx) => {
     ctx.reply(`Hola @${ctx.from.username}, ¿Qué tal? Soy Biscuit Oliva, el hombre más fuerte de América.`);
@@ -51,7 +55,6 @@ bot.hears(['hola','Hola','HOLA'], (ctx) => {
 bot.hears(['Yugor','yugor'], (ctx) => {
     ctx.reply('Hola Maestro Yugor @asistentelink');
 });
-
 
 
 // FUNCIÓN DE POLE
@@ -84,6 +87,7 @@ bot.command('resetpole', (ctx) => {
     failHecho=false;
     ctx.reply('Pole restaurada');
 });
+
 // POLE
 bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
     if(poleHecha === false) {
@@ -103,6 +107,7 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
         }
     }
 });
+
 // SUBPOLE
 bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
     if(subpoleHecha === false) {
@@ -122,6 +127,7 @@ bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
         }
     }
 });
+
 // FAIL
 bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
     if(failHecho === false) {
@@ -142,6 +148,7 @@ bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
         }
     }
 });
+
 // POLERANK
 bot.command('polerank', (ctx) => {
     if(usuarios.length == 0) {
@@ -192,6 +199,25 @@ bot.command('polerank', (ctx) => {
 });
 
 
+// LISTA DE FRASES MOTIVACIONALES
+frasesMotivacionales = [
+    "La felicidad de tu vida depende de la calidad de tus pensamientos",
+    "No son las cosas las que nos perturban, sino la opinión que tenemos de ellas",
+    "La riqueza no consiste en tener grandes posesiones, sino en tener pocas necesidades",
+    "Primero di lo que quieres ser; luego haz lo que tienes que hacer",
+    "Recuerda que no puedes controlar los acontecimientos, solo cómo reaccionas ante ellos",
+    "La dificultad muestra lo que los hombres son",
+    "No te preocupes por la muerte, preocúpate por no haber empezado a vivir",
+    "La verdadera riqueza es vivir con poco, no porque tengas poco, sino porque necesitas menos",
+    "El hombre valiente no es el que no siente miedo, sino el que lo conquista",
+    "Si quieres ser feliz, deja de desear lo que no tienes y aprecia lo que tienes"
+];
+
+bot.command('reflexion', (ctx) => {
+    numero=Math.floor(Math.random()*frasesMotivacionales.length);
+    ctx.reply(`_"${frasesMotivacionales[numero]}"_`, {parse_mode: 'Markdown'});
+});
+
 
 /* Funcionalidades a agregar:
  - Frases motivacionales de Biscuit Oliva
@@ -200,7 +226,5 @@ bot.command('polerank', (ctx) => {
 
 */
 
-// Inicia el bot
+// Iniciar el bot
 bot.launch();
-
-console.log('Bot en ejecución...');
