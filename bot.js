@@ -4,6 +4,7 @@ require('dotenv').config();
 // Variables para las imágenes de la lucha
 const path=require('path');
 const fs=require('fs');
+const schedule=require('node-schedule');
 
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
@@ -12,12 +13,36 @@ let poleHecha=false;
 let subpoleHecha=false;
 let failHecho=false;
 
-function resetPoleDiaria() {
-    const ahora=new Date();
-    const proximoReset=new Date(ahora);
-
-    hizoPole.clear();
+// Cada uno de los chats donde se ejecuta, para guardar las poles de cada uno
+const chats=new Map();
+// Se añade un nuevo chat
+function inicializarChat(idChat) {
+    if(!chats.has(idChat)) {
+        chats.set(idChat, {
+            poleHecha: false,
+            subpoleHecha: false,
+            failHecho: false,
+            hizoPole: new Set(),
+            usuarios: []
+        });
+    }
 }
+
+// Funciones para RESETEAR la pole a las 00:00 todos los días
+function resetPole(idChat) {
+    const chat=chats.get(idChat);
+    if(chat) {
+        poleHecha=false;
+        subpoleHecha=false;
+        failHecho=false;
+        hizoPole.clear();
+        console.log('POLE RESETEADA CORRECTAMENTE A LAS 00:00');
+    }
+}
+schedule.scheduleJob('0 0 * * *', () => {
+    resetPole();
+});
+
 
 // Comandos básicos
 bot.start((ctx) => 
