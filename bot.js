@@ -9,10 +9,6 @@ const schedule=require('node-schedule');
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
 
-let poleHecha=false;
-let subpoleHecha=false;
-let failHecho=false;
-
 // Cada uno de los chats donde se ejecuta, para guardar las poles de cada uno
 const chats=new Map();
 // Se añade un nuevo chat
@@ -22,7 +18,9 @@ function inicializarChat(idChat) {
             poleHecha: false,
             subpoleHecha: false,
             failHecho: false,
+            // Set para evitar que los usuarios que hayan hehco una pole, subpole o fail, puedan volver a hacerla en el mismo día
             hizoPole: new Set(),
+            // Array de Usuarios
             usuarios: []
         });
     }
@@ -118,7 +116,6 @@ bot.command('fight', (ctx) => {
 // HEARS
 bot.hears(['hola','Hola','HOLA'], (ctx) => {
     ctx.reply(`Hola @${ctx.from.username}, ¿Qué tal? Soy Biscuit Oliva, el hombre más fuerte de América.`);
-    console.log(ctx.from.id);
 });
 bot.hears(['Yugor','yugor'], (ctx) => {
     ctx.reply('Hola Maestro Yugor @asistentelink');
@@ -131,13 +128,10 @@ bot.hears(['Yugor','yugor'], (ctx) => {
         - subpole: 1 Giga-Punto
         - fail: 0,5 Giga-Puntos
 */
-// ArrayList de Usuarios
-let usuarios=[];
-// Set para evitar que los usuarios que hayan hehco una pole, subpole o fail, puedan volver a hacerla en el mismo día
-let hizoPole=new Set();
 // Función que sirve para añadir los usuarios y sus puntos al ArrayList
-function agregarPuntos(id, gigapuntos, nombre) {
-    const usuario = usuarios.find(u => u.id === id);
+function agregarPuntos(id, gigapuntos, nombre, chatId) {
+    const chat=chats.get(chatId);
+    const usuario = chat.usuarios.find(u => u.id === id);
 
     if (usuario) {
         console.log('Usuario ya está añadido');
@@ -147,7 +141,7 @@ function agregarPuntos(id, gigapuntos, nombre) {
         }
         usuario.valores.push(gigapuntos);
     } else {
-        usuarios.push({ id: id, nombre: nombre, valores: [gigapuntos] });
+        chat.usuarios.push({ id: id, nombre: nombre, valores: [gigapuntos] });
         console.log('Usuario añadido:', { id, valores: [gigapuntos] });
     }
 }
@@ -162,24 +156,26 @@ bot.command('resetpole', (ctx) => {
 // POLE
 bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
     const usuario=ctx.from.id;
+    const chatId=ctx.chat.id;
+    inicializarChat(chatId);
 
-    if(!hizoPole.has(usuario)) {
-        hizoPole.add(usuario);
+    const chat=chats.get(chatId);
 
-        if(poleHecha === false) {
+    if(!chat.hizoPole.has(usuario)) {
+        chat.hizoPole.add(usuario);
+
+        if(!chat.poleHecha) {
             const username=ctx.from.username;
             const nombre=ctx.from.first_name;
 
             if(username) {
                 ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
-                poleHecha=true;
-                agregarPuntos(usuario, 3, nombre);
-    
             } else {
                 ctx.reply(`El usuario ${ctx.from.first_name} ha hecho la *pole*`, {parse_mode: 'Markdown'});
-                poleHecha=true;
-                agregarPuntos(usuario, 3, nombre);
             }
+
+            chat.poleHecha=true;
+            agregarPuntos(usuario, 3, nombre, chatId);
         }
     }
 });
@@ -187,65 +183,73 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
 // SUBPOLE
 bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
     const usuario=ctx.from.id;
+    const chatId=ctx.chat.id;
+    inicializarChat(chatId);
 
-    if(!hizoPole.has(usuario)) {
-        hizoPole.add(usuario);
+    const chat=chats.get(chatId);
 
-        if(subpoleHecha === false) {
+    if(!chat.hizoPole.has(usuario)) {
+        chat.hizoPole.add(usuario);
+
+        if(!chat.subpoleHecha) {
             const username=ctx.from.username;
             const nombre=ctx.from.first_name;
             
             if(username) {
-                ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
-                subpoleHecha=true;
-                agregarPuntos(usuario, 1, nombre);
-    
+                ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});    
             } else {
                 ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
-                subpoleHecha=true;
-                agregarPuntos(usuario, 1, nombre);
             }
+
+            chat.subpoleHecha=true;
+            agregarPuntos(usuario, 1, nombre, chatId);
         }
     }
-
 });
 
 // FAIL
 bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
     const usuario=ctx.from.id;
+    const chatId=ctx.chat.id;
+    inicializarChat(chatId);
 
-    if(!hizoPole.has(usuario)) {
-        hizoPole.add(usuario);
+    const chat=chats.get(chatId);
 
-        if(failHecho === false) {
+    if(!chat.hizoPole.has(usuario)) {
+        chat.hizoPole.add(usuario);
+
+        if(!chat.failHecho) {
             const username=ctx.from.username;
             const nombre=ctx.from.first_name;
             
             if(username) {
                 ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
-                subpoleHecha=true;
-                agregarPuntos(usuario, 0.5, nombre);
     
             } else {
                 ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
-                subpoleHecha=true;
-                agregarPuntos(usuario, 0.5, nombre);
-    
             }
+
+            chat.subpoleHecha=true;
+            agregarPuntos(usuario, 0.5, nombre, chatId);
         }
     }
 });
 
 // POLERANK
 bot.command('polerank', (ctx) => {
-    if(usuarios.length == 0) {
+    const chatID=ctx.chat.id;
+    inicializarChat(chatID);
+
+    const chat=chats.get(chatID);
+
+    if(chat.usuarios.length == 0) {
         ctx.reply('*Nadie ha hecho ninguna pole todavía*', {parse_mode: 'Markdown'});
 
     } else {
         let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n---------------------------------------------------';
         let puntuacionMax=[]
     
-        usuarios.forEach(u => {
+        chat.usuarios.forEach(u => {
             let nombreUsuario=u.nombre;
             let totalPuntos=0;
     
