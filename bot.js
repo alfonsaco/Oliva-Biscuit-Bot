@@ -1,4 +1,4 @@
-const { Telegraf }=require('telegraf');
+const { Telegraf, Markup }=require('telegraf');
 require('dotenv').config();
 
 // Variables para las imágenes de la lucha
@@ -76,41 +76,108 @@ bot.telegram.setMyCommands([
 const ataquesOliva = [
     { imagen: path.resolve(__dirname, 'Images/bola.jpg'), texto: 'Oliva usa su ataque Bola' },
     { imagen: path.resolve(__dirname, 'Images/bolsillos.png'), texto: 'Oliva se mete la mano en los bolsillos y te da tremenda paliza' },
-    { imagen: path.resolve(__dirname, 'Images/cabezazo.jpg'), texto: 'Oliva te proporciona un cabezazo terrible' }
+    { imagen: path.resolve(__dirname, 'Images/cabezazo.jpg'), texto: 'Oliva te propina un cabezazo terrible' }
 ];
 
-// Función de lucha
-bot.command('fight', (ctx) => {
-    ctx.reply('¡COMIENZA LA LUCHA!');
+const ataquesUsuario = [
+    { imagen: path.resolve(__dirname, 'Images/latigo.jpg'), texto: 'Contraatacas utilizando la mano de látigo' },
+    { imagen: path.resolve(__dirname, 'Images/mano.png'), texto: 'Utilizas la Mano Venenosa para atacar a Oliva' },
+    { imagen: path.resolve(__dirname, 'Images/mordisco.png'), texto: 'Intentas morder con fuerza a Oliva' }
+];
 
-    let contTurno=0;
 
-    let olivaGana=0;
-    let jugadorGana=0;
+// INICIAR PELEA
+let combateEnCurso=false;
+let turnoJugador=false;
+let jugadorPuntos=0;
+let olivaPuntos=0;
 
-    while (contTurno < 5) {
-        const randomAtaqueOliva = Math.floor(Math.random()*ataquesOliva.length);
-        const resultadoTurno = Math.floor(Math.random()*2);
-
-        if (resultadoTurno === 1) {
-            try {
-                const fileStream=fs.createReadStream(ataquesOliva[randomAtaqueOliva].imagen);
-                ctx.replyWithPhoto({ source: fileStream }, { caption: ataquesOliva[randomAtaqueOliva].texto });
-
-            } catch (error) {
-                ctx.reply('¡Error al cargar el ataque de Oliva!');
-            }
-            olivaGana++;
-
-        } else {
-            ctx.reply('¡CONSIGUES ATINARLE UN CATE AL OLIVA!');
-            jugadorGana++;
-
-        }
-
-        contTurno++;
+bot.command('fight', async (ctx) => {
+    if (combateEnCurso) {
+        ctx.reply('Ya hay un combate en curso. Por favor, espera a que termine.');
+        return;
     }
+
+    combateEnCurso=true;
+    let turnoJugador=false;
+    let jugadorPuntos=0;
+    let olivaPuntos=0;
+
+    ctx.reply('🚨🚨 COMIENZA LA LUCHA 🚨🚨');
+    turnoDeOliva(ctx);
 });
+// Función para manejar el turno de Oliva
+async function turnoDeOliva(ctx) {
+    const randomAtaque = Math.floor(Math.random()*ataquesOliva.length);
+    const defensaJugador = Math.floor(Math.random()*ataquesOliva.length);
+
+    const fileStream = fs.createReadStream(ataquesOliva[randomAtaque].imagen);
+    await ctx.replyWithPhoto({ source: fileStream }, { caption: ataquesOliva[randomAtaque].texto });
+
+    if (randomAtaque === defensaJugador) {
+        await ctx.reply('¡Te defiendes con éxito del ataque de Oliva! 🛡');
+    } else {
+        await ctx.reply('Oliva consigue encajar su ataque. Pierdes 1 vida ♥');
+        olivaPuntos++;
+    }
+
+    // Verificar si alguien ganó
+    verificarGanador(ctx);
+    if (combateEnCurso) {
+        turnoJugador=true;
+        turnoDeJugador(ctx);
+    }
+}
+
+// Función para manejar el turno del jugador
+async function turnoDeJugador(ctx) {
+    await ctx.reply(
+        'Es tu turno de atacar. ¡Elige un ataque! ⚔',
+        Markup.inlineKeyboard([
+            Markup.button.callback('Látigo', 'ataque_0'),
+            Markup.button.callback('Mano Venenosa', 'ataque_1'),
+            Markup.button.callback('Mordisco', 'ataque_2')
+        ])
+    );
+}
+// Manejo del botón seleccionado por el jugador
+bot.action(/ataque_\d/, async (ctx) => {
+    if (!combateEnCurso || !turnoJugador) return;
+
+    const ataqueSeleccionado=parseInt(ctx.match[0].split('_')[1]);
+    const defensaBot=Math.floor(Math.random()*ataquesUsuario.length);
+
+    const fileStream = fs.createReadStream(ataquesUsuario[ataqueSeleccionado].imagen);
+    await ctx.replyWithPhoto({ source: fileStream }, { caption: ataquesUsuario[ataqueSeleccionado].texto });
+
+    if (ataqueSeleccionado === defensaBot) {
+        await ctx.reply('Oliva consigue defenderse de tu ataque!! 🛡');
+    } else {
+        await ctx.reply('Consigues encajar tu ataque. Oliva pierde 1 vida ♥');
+        jugadorPuntos++;
+    }
+
+    // Verificar si alguien ganó
+    verificarGanador(ctx);
+    if (combateEnCurso) {
+        turnoJugador=false;
+        turnoDeOliva(ctx);
+    }
+
+    ctx.answerCbQuery();
+});
+
+// Verificar el ganador
+function verificarGanador(ctx) {
+    if (olivaPuntos >= 3) {
+        ctx.reply('Oliva te ha derrotado. Se nota que es el hombre más fuerte de América 🌎');
+        combateEnCurso=false;
+
+    } else if (jugadorPuntos >= 3) {
+        ctx.reply('🏆 ¡Has ganado la batalla contra Oliva! Felicidades.');
+        combateEnCurso=false;
+    }
+}
 
 
 // HEARS
@@ -146,11 +213,16 @@ function agregarPuntos(id, gigapuntos, nombre, chatId) {
     }
 }
 bot.command('resetpole', (ctx) => {
-    poleHecha=false;
-    subpoleHecha=false;
-    failHecho=false;
-    hizoPole.clear();
-    ctx.reply('Pole restaurada');
+    const chatID=ctx.chat.id;
+    const chat=chats.get(chatID);
+
+    if(chat) {
+        chat.poleHecha=false;
+        chat.subpoleHecha=false;
+        chat.failHecho=false;
+        chat.hizoPole.clear();
+        ctx.reply('Pole restaurada');
+    }
 });
 
 // POLE
@@ -314,7 +386,8 @@ bot.command('reflexion', (ctx) => {
 listaRutinas = [
     // PPL
     `*PUSH PULL LEGS (PPL):*
-    Día 1 - Push (Pecho, Hombros, Tríceps):
+_Día 1:_
+    - Push (Pecho, Hombros, Tríceps):
     - Press banca con barra (4x8-12)
     - Press inclinado con mancuernas (4x10-12)
     - Fondos en paralelas (3x hasta el fallo)
@@ -322,7 +395,8 @@ listaRutinas = [
     - Elevaciones laterales (4x12-15)
     - Extensiones de tríceps en polea (3x12-15)
 
-    Día 2 - Pull (Espalda, Bíceps, Trapecios):
+_Día 2:_
+    - Pull (Espalda, Bíceps, Trapecios):
     - Dominadas (4x8-12)
     - Remo con barra (4x10-12)
     - Jalón al pecho (4x12)
@@ -331,7 +405,8 @@ listaRutinas = [
     - Curl martillo (3x12)
     - Encogimientos para trapecios (4x15)
 
-    Día 3 - Legs (Piernas y core):
+_Día 3:_
+    - Legs (Piernas y core):
     - Sentadilla con barra (4x8-12)
     - Prensa inclinada (4x10-12)
     - Peso muerto rumano (4x8-10)
@@ -342,7 +417,8 @@ listaRutinas = [
 
     // ARNOLD
     `*ARNOLD SPLIT:*
-    Día 1 - Pecho y Espalda:
+_Día 1:_ 
+    - Pecho y Espalda:
     - Press banca con barra (4x8-12)
     - Aperturas con mancuernas (4x12)
     - Dominadas (4x8-12)
@@ -350,7 +426,8 @@ listaRutinas = [
     - Jalón al pecho (4x12)
     - Pull-over con mancuerna (4x12)
 
-    Día 2 - Hombros y Brazos:
+_Día 2:_
+    - Hombros y Brazos:
     - Press militar con barra (4x8-10)
     - Elevaciones laterales con mancuernas (4x12-15)
     - Pájaros para deltoides posteriores (4x12-15)
@@ -359,7 +436,8 @@ listaRutinas = [
     - Extensiones de tríceps en polea (3x12-15)
     - Press francés (3x12)
 
-    Día 3 - Piernas y Core:
+_Día 3:_
+    - Piernas y Core:
     - Sentadilla con barra (4x8-12)
     - Peso muerto rumano (4x8-10)
     - Zancadas con mancuernas (3x12 por pierna)
@@ -371,7 +449,7 @@ listaRutinas = [
 
     // FULL BODY
     `*FULL BODY:*
-    Día 1:
+_Día 1:_
     - Sentadilla con barra (4x8-12)
     - Press banca con barra (4x8-12)
     - Remo con barra (4x10-12)
@@ -380,7 +458,7 @@ listaRutinas = [
     - Curl de bíceps con barra (4x10)
     - Extensiones de tríceps en polea (3x12)
 
-    Día 2:
+_Día 2:_
     - Peso muerto (4x8-10)
     - Press inclinado con mancuernas (4x10-12)
     - Remo con mancuernas (4x12)
@@ -389,7 +467,7 @@ listaRutinas = [
     - Curl martillo (3x12)
     - Plancha abdominal (3x1 minuto)
 
-    Día 3:
+_Día 3:_
     - Prensa inclinada (4x10-12)
     - Pull-over con mancuerna (4x12)
     - Sentadilla frontal (4x8-10)
