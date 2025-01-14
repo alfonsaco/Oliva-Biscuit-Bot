@@ -9,6 +9,42 @@ const schedule=require('node-schedule');
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
 
+// CREAR BASE DE DATOS
+// ------------------------------------
+const sqlite3=require('sqlite3').verbose();
+const db=new sqlite3.Database('db/poles.db', (err) => {
+    if(err) {
+        console.log(err);
+    }
+    console.log('Conexión a la base de datos lograda con éxito');
+});
+// Creación de la table
+db.run(`
+    CREATE TABLE IF NOT EXISTS POLES (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CHAT_ID INTEGER NOT NULL UNIQUE,
+        ID_USUARIO INTEGER NOT NULL,
+        PUNTOS REAL,
+        USERNAME TEXT,
+        TIPO TEXT
+    )
+`);
+// Función para agregar un nuevo registro a la tabla
+function agregarPuntosDB(idChat, idUsuario, username, tipo, puntos) {
+    const insercion='INSERT INTO POLES (CHAT_ID, ID_USUARIO, PUNTOS, USERNAME, TIPO) VALUES (?,?,?,?,?)';
+
+    db.run(insercion, [idChat, idUsuario, puntos, username, tipo], (err) => {
+        if(err) {
+            console.error(err);
+        } else {
+            console.log(`Pole insertada con éxito: ${username} hizo ${tipo}`);
+        }
+    });
+
+}
+// ------------------------------------
+
+
 // Cada uno de los chats donde se ejecuta, para guardar las poles de cada uno
 const chats=new Map();
 // Se añade un nuevo chat
@@ -36,6 +72,8 @@ function resetPole(idChat) {
         hizoPole.clear();
         console.log('POLE RESETEADA CORRECTAMENTE A LAS 00:00');
     }
+
+    db.run(`DELETE FROM POLES`);    
 }
 schedule.scheduleJob('0 0 * * *', () => {
     resetPole();
@@ -223,6 +261,8 @@ bot.command('resetpole', (ctx) => {
         chat.hizoPole.clear();
         ctx.reply('Pole restaurada');
     }
+
+    resetPole(chatID);
 });
 
 // POLE
@@ -239,6 +279,7 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
         if(!chat.poleHecha) {
             const username=ctx.from.username;
             const nombre=ctx.from.first_name;
+            const idUsuario=ctx.from.id;
 
             if(username) {
                 ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
@@ -248,6 +289,8 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
 
             chat.poleHecha=true;
             agregarPuntos(usuario, 3, nombre, chatId);
+
+            agregarPuntosDB(chatId, idUsuario, username, 'pole', 3);
         }
     }
 });
