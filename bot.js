@@ -9,76 +9,6 @@ const schedule=require('node-schedule');
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
 
-// CREAR BASE DE DATOS
-// ------------------------------------
-const sqlite3=require('sqlite3').verbose();
-const db=new sqlite3.Database('db/poles.db', (err) => {
-    if(err) {
-        console.log(err);
-    }
-    console.log('Conexión a la base de datos lograda con éxito');
-});
-// Creación de la table
-db.run(`
-    CREATE TABLE IF NOT EXISTS POLES (
-        ID INTEGER PRIMARY KEY AUTOINCREMENT,
-        CHAT_ID INTEGER NOT NULL UNIQUE,
-        ID_USUARIO INTEGER NOT NULL,
-        PUNTOS REAL,
-        USERNAME TEXT,
-        TIPO TEXT
-    )
-`);
-// Función para agregar un nuevo registro a la tabla
-function agregarPuntosDB(idChat, idUsuario, username, tipo, puntos) {
-    const insercion='INSERT INTO POLES (CHAT_ID, ID_USUARIO, PUNTOS, USERNAME, TIPO) VALUES (?,?,?,?,?)';
-
-    db.run(insercion, [idChat, idUsuario, puntos, username, tipo], (err) => {
-        if(err) {
-            console.error(err);
-        } else {
-            console.log(`Pole insertada con éxito: ${username} hizo ${tipo}`);
-        }
-    });
-
-}
-// ------------------------------------
-
-
-// Cada uno de los chats donde se ejecuta, para guardar las poles de cada uno
-const chats=new Map();
-// Se añade un nuevo chat
-function inicializarChat(idChat) {
-    if(!chats.has(idChat)) {
-        chats.set(idChat, {
-            poleHecha: false,
-            subpoleHecha: false,
-            failHecho: false,
-            // Set para evitar que los usuarios que hayan hehco una pole, subpole o fail, puedan volver a hacerla en el mismo día
-            hizoPole: new Set(),
-            // Array de Usuarios
-            usuarios: []
-        });
-    }
-}
-
-// Funciones para RESETEAR la pole a las 00:00 todos los días
-function resetPole(idChat) {
-    const chat=chats.get(idChat);
-    if(chat) {
-        poleHecha=false;
-        subpoleHecha=false;
-        failHecho=false;
-        hizoPole.clear();
-        console.log('POLE RESETEADA CORRECTAMENTE A LAS 00:00');
-    }
-
-    db.run(`DELETE FROM POLES`);    
-}
-schedule.scheduleJob('0 0 * * *', () => {
-    resetPole();
-});
-
 
 // Comandos básicos
 bot.start((ctx) => 
@@ -234,6 +164,77 @@ bot.hears(['Yugor','yugor'], (ctx) => {
         - fail: 0,5 Giga-Puntos
 */
 // Función que sirve para añadir los usuarios y sus puntos al ArrayList
+// CREAR BASE DE DATOS
+// -----------------------------------------------------------------------
+const sqlite3=require('sqlite3').verbose();
+const db=new sqlite3.Database('db/poles.db', (err) => {
+    if(err) {
+        console.log(err);
+    }
+    console.log('Conexión a la base de datos lograda con éxito');
+});
+// Creación de la tabla. La fecha se agrega para pdoer verificar si ya se ha hecho una pole en este día o no
+db.run(`
+    CREATE TABLE IF NOT EXISTS POLES (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CHAT_ID INTEGER NOT NULL,
+        ID_USUARIO INTEGER NOT NULL,
+        PUNTOS REAL,
+        USERNAME TEXT,
+        TIPO TEXT,
+        FECHA DATE DEFAULT (DATE('now'))
+    )
+`);
+// Función para agregar un nuevo registro a la tabla
+function agregarPuntosDB(idChat, idUsuario, username, tipo, puntos) {
+    const insercion='INSERT INTO POLES (CHAT_ID, ID_USUARIO, PUNTOS, USERNAME, TIPO) VALUES (?,?,?,?,?)';
+
+    db.run(insercion, [idChat, idUsuario, puntos, username, tipo], (err) => {
+        if(err) {
+            console.error(err);
+        } else {
+            console.log(`Pole insertada con éxito: ${username} hizo ${tipo}`);
+        }
+    });
+}
+// Función para  verificar las poles hechas en un día específico
+function verificarTipoPole(idChat, tipo) {
+    return new Promise((resolve, reject) => {
+        const consulta=`SELECT * FROM POLES 
+            WHERE CHAT_ID=? 
+                AND TIPO=? 
+                AND FECHA=DATE('now')`;
+
+        db.get(consulta, [idChat, tipo], (err, row) => {
+            if(err) {
+                console.log('Error verificando la pole', err);
+                resolve(false);
+            } else {
+                // Devolverá true si hay un registro
+                resolve(!!row);
+            }
+        });
+    });
+}
+function verificarUsuarioPole(idChat, idUsuario) {
+    // Para realizar operaciones asíncronas
+    return new Promise((resolve, reject) => {
+        const consulta=`SELECT * FROM POLES
+            WHERE CHAT_ID=?
+                AND ID_USUARIO=?
+                AND FECHA=DATE('now')`;
+        
+        db.get(consulta, [idChat, idUsuario], (err, row) => {
+            if(err) {
+                console.log('Error al verificar si el usuario hizo alguna acción', err);
+                resolve(false);
+            } else {
+                resolve(!!row);
+            }
+        });
+    });
+}
+// -----------------------------------------------------------------------
 function agregarPuntos(id, gigapuntos, nombre, chatId) {
     const chat=chats.get(chatId);
     const usuario = chat.usuarios.find(u => u.id === id);
@@ -250,103 +251,122 @@ function agregarPuntos(id, gigapuntos, nombre, chatId) {
         console.log('Usuario añadido:', { id, valores: [gigapuntos] });
     }
 }
+// Funciones para RESETEAR la pole a las 00:00 todos los días
+function resetPole() {
+    db.run(`DELETE FROM POLES`); 
+    console.log('POLE RESETEADA CORRECTAMENTE A LAS 00:00');   
+}
 bot.command('resetpole', (ctx) => {
-    const chatID=ctx.chat.id;
-    const chat=chats.get(chatID);
-
-    if(chat) {
-        chat.poleHecha=false;
-        chat.subpoleHecha=false;
-        chat.failHecho=false;
-        chat.hizoPole.clear();
-        ctx.reply('Pole restaurada');
-    }
-
-    resetPole(chatID);
+    resetPole();
+    ctx.reply('Pole restaurada');
 });
 
 // POLE
-bot.hears(['pole', 'Oro', 'Pole', 'oro'], (ctx) => {
-    const usuario=ctx.from.id;
-    const chatId=ctx.chat.id;
-    inicializarChat(chatId);
+bot.hears(['pole', 'Oro', 'Pole', 'oro'], async (ctx) => {
+    try {
+        const chatId=ctx.chat.id;
+        const idUsuario=ctx.from.id;
+        const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
+    
+        // Con esto, verificaremos si se puede hacer la pole o no. Se usa await para que el programa no siga hasta
+        // que lo cumpla
+        const poleHecha=await verificarTipoPole(chatId, 'pole');
+    
+        if(!poleHecha) {
+            const poleUsuario=await verificarUsuarioPole(chatId, idUsuario);
 
-    const chat=chats.get(chatId);
-
-    if(!chat.hizoPole.has(usuario)) {
-        chat.hizoPole.add(usuario);
-
-        if(!chat.poleHecha) {
-            const username=ctx.from.username;
-            const nombre=ctx.from.first_name;
-            const idUsuario=ctx.from.id;
-
-            if(username) {
-                ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+            if(!poleUsuario) {
+                if(username) {
+                    ctx.reply(`El usuario @${username} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+                } else {
+                    ctx.reply(`El usuario ${nombre} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+                }
+                
+                agregarPuntosDB(chatId, idUsuario, username, 'pole', 3);
             } else {
-                ctx.reply(`El usuario ${ctx.from.first_name} ha hecho la *pole*`, {parse_mode: 'Markdown'});
+                ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
-
-            chat.poleHecha=true;
-            agregarPuntos(usuario, 3, nombre, chatId);
-
-            agregarPuntosDB(chatId, idUsuario, username, 'pole', 3);
+    
+        } else {
+            console.log('La pole ya se ha hecho');
         }
+
+    } catch(error) {
+        console.log('Error al manejar la pole');
     }
 });
 
 // SUBPOLE
-bot.hears(['subpole','Subpole','Plata','plata'], (ctx) => {
-    const usuario=ctx.from.id;
-    const chatId=ctx.chat.id;
-    inicializarChat(chatId);
+bot.hears(['subpole','Subpole','Plata','plata'], async (ctx) => {
+    try {
+        const chatId=ctx.chat.id;
+        const idUsuario=ctx.from.id;
+        const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
+    
+        // Con esto, verificaremos si se puede hacer la pole o no. Se usa await para que el programa no siga hasta
+        // que lo cumpla
+        const subpoleHecha=await verificarTipoPole(chatId, 'subpole');
+    
+        if(!subpoleHecha) {
+            const subpoleUsuario=await verificarUsuarioPole(chatId, idUsuario);
 
-    const chat=chats.get(chatId);
-
-    if(!chat.hizoPole.has(usuario)) {
-        chat.hizoPole.add(usuario);
-
-        if(!chat.subpoleHecha) {
-            const username=ctx.from.username;
-            const nombre=ctx.from.first_name;
-            
-            if(username) {
-                ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});    
+            if(!subpoleUsuario) {
+                if(username) {
+                    ctx.reply(`El usuario @${username} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+                } else {
+                    ctx.reply(`El usuario ${nombre} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+                }
+                
+                agregarPuntosDB(chatId, idUsuario, username, 'subpole', 3);
             } else {
-                ctx.reply(`El usuario @${ctx.from.first_name} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
+                ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
-
-            chat.subpoleHecha=true;
-            agregarPuntos(usuario, 1, nombre, chatId);
+    
+        } else {
+            console.log('La subpole ya se ha hecho');
         }
+
+    } catch(error) {
+        console.log('Error al manejar la subpole');
     }
 });
 
 // FAIL
-bot.hears(['fail','Fail','bronce','Bronce'], (ctx) => {
-    const usuario=ctx.from.id;
-    const chatId=ctx.chat.id;
-    inicializarChat(chatId);
-
-    const chat=chats.get(chatId);
-
-    if(!chat.hizoPole.has(usuario)) {
-        chat.hizoPole.add(usuario);
-
-        if(!chat.failHecho) {
-            const username=ctx.from.username;
-            const nombre=ctx.from.first_name;
-            
-            if(username) {
-                ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+bot.hears(['fail','Fail','bronce','Bronce'], async (ctx) => {
+    try {
+        const chatId=ctx.chat.id;
+        const idUsuario=ctx.from.id;
+        const username=ctx.from.username;
+        const nombre=ctx.from.first_name;
     
+        // Con esto, verificaremos si se puede hacer la pole o no. Se usa await para que el programa no siga hasta
+        // que lo cumpla
+        const failHecho=await verificarTipoPole(chatId, 'fail');
+    
+        // Verificamos que no se haya hecho el fail antes, en un chat específico
+        if(!failHecho) {
+            const subpoleUsuario=await verificarUsuarioPole(chatId, idUsuario);
+            // Verificamos que el usuario en cuestión no haya hecho la "subpole" o "fail". Si lo ha hechon o podrá hacer la pole
+            if(!subpoleUsuario) {
+                if(username) {
+                    ctx.reply(`El usuario @${username} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+                } else {
+                    ctx.reply(`El usuario ${nombre} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+                }
+                
+                agregarPuntosDB(chatId, idUsuario, username, 'fail', 3);
             } else {
-                ctx.reply(`El usuario @${ctx.from.first_name} ha hecho el *fail*`, {parse_mode: 'Markdown'});
+                ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
-
-            chat.subpoleHecha=true;
-            agregarPuntos(usuario, 0.5, nombre, chatId);
+    
+        } else {
+            console.log('El fail ya se ha hecho');
         }
+
+    } catch(error) {
+        console.log('Error al manejar el fail');
     }
 });
 
