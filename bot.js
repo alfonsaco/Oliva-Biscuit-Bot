@@ -34,6 +34,7 @@ bot.telegram.setMyCommands([
     {command: 'help', description: 'Muestra la lista de comandos'},
     {command: 'fight', description: 'Pelea contra Biscuit Oliva'},
     {command: 'polerank', description: 'Muestra el ranking de Poles'},
+    {command: 'mypoints', description: 'Muestra tus puntos'},
     {command: 'reflexion', description: 'Muestra una frase motivacional 🗿'},
     {command: 'rutina', description: 'Biscuit Oliva te enseña una rutina de gimnasio para ponerte igual de fuerte que él'}
 ]);
@@ -179,6 +180,7 @@ db.run(`
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
         CHAT_ID INTEGER NOT NULL,
         ID_USUARIO INTEGER NOT NULL,
+        NOMBRE TEXT,
         PUNTOS REAL,
         USERNAME TEXT,
         TIPO TEXT,
@@ -186,14 +188,15 @@ db.run(`
     )
 `);
 // Función para agregar un nuevo registro a la tabla
-function agregarPuntosDB(idChat, idUsuario, username, tipo, puntos) {
-    const insercion='INSERT INTO POLES (CHAT_ID, ID_USUARIO, PUNTOS, USERNAME, TIPO) VALUES (?,?,?,?,?)';
+function agregarPuntosDB(idChat, idUsuario, nombre, username, tipo, puntos) {
+    const insercion='INSERT INTO POLES (CHAT_ID, ID_USUARIO, NOMBRE, PUNTOS, USERNAME, TIPO) VALUES (?,?,?,?,?,?)';
 
-    db.run(insercion, [idChat, idUsuario, puntos, username, tipo], (err) => {
+    db.run(insercion, [idChat, idUsuario, nombre, puntos, username, tipo], (err) => {
         if(err) {
             console.error(err);
         } else {
-            console.log(`Pole insertada con éxito: ${username} hizo ${tipo}`);
+            // En caso de que no exista username se usa nombre
+            console.log(`Pole insertada con éxito: ${username || nombre} hizo ${tipo}`);
         }
     });
 }
@@ -234,23 +237,44 @@ function verificarUsuarioPole(idChat, idUsuario) {
         });
     });
 }
-// -----------------------------------------------------------------------
-function agregarPuntos(id, gigapuntos, nombre, chatId) {
-    const chat=chats.get(chatId);
-    const usuario = chat.usuarios.find(u => u.id === id);
+// Función para verificar si en el chat en cuestión se ha hehco laguna pole en algún momento desde que se añadió el bot
+function verificarSiChatTieneDatos(idChat) {
+    return new Promise((resolve, reject) => {
+        const consulta=`SELECT COUNT(*) AS TOTAL FROM POLES
+            WHERE CHAT_ID=?`;
 
-    if (usuario) {
-        console.log('Usuario ya está añadido');
-        // Se verifica que "valores" existe dentro del Array
-        if (!Array.isArray(usuario.valores)) {
-            usuario.valores = [];
-        }
-        usuario.valores.push(gigapuntos);
-    } else {
-        chat.usuarios.push({ id: id, nombre: nombre, valores: [gigapuntos] });
-        console.log('Usuario añadido:', { id, valores: [gigapuntos] });
-    }
+        db.get(consulta, [idChat], (err, row) => {
+            if(err) {
+                console.log('Error al verificar si ya se hicieron poles en el Chat', err);
+                resolve(false);
+            } else {    
+                // Devuelve true si si hay un registro
+                resolve(row.TOTAL > 0);
+            }
+        });
+    });
 }
+// Mostrar suma puntos de las poles
+function mostrarPuntosUsuario(idChat, idUsuario) {
+    return new Promise((resolve, reject) => {
+        const consulta=`SELECT SUM(PUNTOS) AS TOTAL_PUNTOS 
+            FROM POLES
+                WHERE CHAT_ID=?
+                AND ID_USUARIO=?`;
+
+        db.get(consulta, [idChat, idUsuario], (err, row) => {
+            if(err) {
+                console.log('Error al verificar si ya se hicieron poles en el Chat', err);
+                resolve(false);
+            } else {    
+                // Devuelve true si si hay un registro
+                const totalPuntos=row.TOTAL_PUNTOS ? row.TOTAL_PUNTOS : 0;
+                resolve(totalPuntos);
+            }
+        })
+    });
+}
+// -----------------------------------------------------------------------
 // Funciones para RESETEAR la pole a las 00:00 todos los días
 function resetPole() {
     db.run(`DELETE FROM POLES`); 
@@ -262,7 +286,7 @@ bot.command('resetpole', (ctx) => {
 });
 
 // POLE
-bot.hears(['pole', 'Oro', 'Pole', 'oro'], async (ctx) => {
+bot.hears(['pole', 'Oro', 'Pole', 'oro', 'POLE', 'ORO'], async (ctx) => {
     try {
         const chatId=ctx.chat.id;
         const idUsuario=ctx.from.id;
@@ -283,7 +307,7 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], async (ctx) => {
                     ctx.reply(`El usuario ${nombre} ha hecho la *pole*`, {parse_mode: 'Markdown'});
                 }
                 
-                agregarPuntosDB(chatId, idUsuario, username, 'pole', 3);
+                agregarPuntosDB(chatId, idUsuario, nombre, username, 'pole', 3);
             } else {
                 ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
@@ -298,7 +322,7 @@ bot.hears(['pole', 'Oro', 'Pole', 'oro'], async (ctx) => {
 });
 
 // SUBPOLE
-bot.hears(['subpole','Subpole','Plata','plata'], async (ctx) => {
+bot.hears(['subpole','Subpole','Plata','plata', 'SUBPOLE', 'PLATA'], async (ctx) => {
     try {
         const chatId=ctx.chat.id;
         const idUsuario=ctx.from.id;
@@ -319,7 +343,7 @@ bot.hears(['subpole','Subpole','Plata','plata'], async (ctx) => {
                     ctx.reply(`El usuario ${nombre} ha hecho la *subpole*`, {parse_mode: 'Markdown'});
                 }
                 
-                agregarPuntosDB(chatId, idUsuario, username, 'subpole', 3);
+                agregarPuntosDB(chatId, idUsuario, nombre, username, 'subpole', 1);
             } else {
                 ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
@@ -334,7 +358,7 @@ bot.hears(['subpole','Subpole','Plata','plata'], async (ctx) => {
 });
 
 // FAIL
-bot.hears(['fail','Fail','bronce','Bronce'], async (ctx) => {
+bot.hears(['fail','Fail','bronce','Bronce', 'FAIL', 'BRONCE'], async (ctx) => {
     try {
         const chatId=ctx.chat.id;
         const idUsuario=ctx.from.id;
@@ -356,7 +380,7 @@ bot.hears(['fail','Fail','bronce','Bronce'], async (ctx) => {
                     ctx.reply(`El usuario ${nombre} ha hecho el *fail*`, {parse_mode: 'Markdown'});
                 }
                 
-                agregarPuntosDB(chatId, idUsuario, username, 'fail', 3);
+                agregarPuntosDB(chatId, idUsuario, nombre, username, 'fail', 0.5);
             } else {
                 ctx.reply(`El usuario ${username} ya hizo pole / subpole / fail`);
             }
@@ -371,57 +395,69 @@ bot.hears(['fail','Fail','bronce','Bronce'], async (ctx) => {
 });
 
 // POLERANK
-bot.command('polerank', (ctx) => {
+// Función para mostrar tus puntos
+bot.command('mypoints', async (ctx) => {
+    const idUsuario=ctx.from.id;
+    const username=ctx.from.username;
+    const idChat=ctx.chat.id;
+
+    let puntos=await mostrarPuntosUsuario(idChat, idUsuario);
+
+    ctx.reply(`El usuario ${username} tiene ${puntos} Giga-Puntos`)
+});
+// Función para mostrar todos los puntos
+bot.command('polerank', async (ctx) => {
     const chatID=ctx.chat.id;
-    inicializarChat(chatID);
 
-    const chat=chats.get(chatID);
+    try {
+        const tieneDatos=await verificarSiChatTieneDatos(chatID);
 
-    if(chat.usuarios.length == 0) {
-        ctx.reply('*Nadie ha hecho ninguna pole todavía*', {parse_mode: 'Markdown'});
+        if(!tieneDatos) {
+            ctx.reply('*Nadie ha hecho ninguna pole todavía*', {parse_mode: 'Markdown'});
 
-    } else {
-        let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n---------------------------------------------------';
-        let puntuacionMax=[]
-    
-        chat.usuarios.forEach(u => {
-            let nombreUsuario=u.nombre;
-            let totalPuntos=0;
-    
-            u.valores.forEach(valor => {
-                totalPuntos+=valor;
+        } else {
+            let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n---------------------------------------------------';
+            let contRank=0;
+           
+            const consulta=`SELECT USERNAME, NOMBRE, SUM(PUNTOS) AS TOTAL_PUNTOS 
+                FROM POLES
+                        WHERE CHAT_ID=?
+                    GROUP BY ID_USUARIO
+                    ORDER BY TOTAL_PUNTOS DESC`;
+
+            db.all(consulta,[chatID], (err, rows) => {
+                if(err) {
+                    ctx.reply('Ocurrió un error al general el Ranking');
+                    return;
+                }
+
+                rows.forEach(row => {
+                    contRank++;
+                    const username=row.USERNAME ? `${row.USERNAME}` : `${row.NOMBRE}`;
+                    const puntos=row.TOTAL_PUNTOS;
+
+                    switch(contRank) {
+                        case 1:
+                            mensaje+=`\n1️⃣ *${username}* = ${puntos} Giga-Puntos`;
+                            break;
+                        case 2:
+                            mensaje+=`\n2️⃣ *${username}* = ${puntos} Giga-Puntos`;
+                            break;
+                        case 3:
+                            mensaje+=`\n3️⃣ *${username}* = ${puntos} Giga-Puntos`;
+                            break;
+                        default:
+                            mensaje+=`\n🆗 *${username}* = ${puntos} Giga-Puntos`;
+                            break;
+                    }   
+                });
+                ctx.reply(mensaje, {parse_mode: 'Markdown'});
             });
-    
-            puntuacionMax.push({nombre: nombreUsuario, total: totalPuntos});
-            //mensaje+=`\n*${nombreUsuario}* = ${totalPuntos} Giga-Puntos`;
-        });
-    
-        // Ordenamos los usuarios de mayor a menos número de puntos
-        puntuacionMax.sort((a, b) => b.total - a.total);
-        contRank=0;
-    
-        puntuacionMax.forEach(t => {
-            contRank++;
-            
-            switch(contRank) {
-                case 1:
-                    mensaje+=`\n1️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
-                    break;
-                case 2:
-                    mensaje+=`\n2️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
-                    break;
-                case 3:
-                    mensaje+=`\n3️⃣ *${t.nombre}* = ${t.total} Giga-Puntos`;
-                    break;
-                default:
-                    mensaje+=`\n🆗 *${t.nombre}* = ${t.total} Giga-Puntos`;
-                    break;
-            }   
-        });
-    
-        ctx.reply(mensaje, {parse_mode: 'Markdown'});
+        }
+        
+    } catch (error) {
+        console.log('Error al ejecutar /polerank');
     }
-
 });
 
 
