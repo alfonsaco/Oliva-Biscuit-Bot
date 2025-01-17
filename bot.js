@@ -4,7 +4,6 @@ require('dotenv').config();
 // Variables para las imágenes de la lucha
 const path=require('path');
 const fs=require('fs');
-const schedule=require('node-schedule');
 
 // Inicializar el bot con el token desde el archivo .env
 const bot=new Telegraf(process.env.TELEGRAM_TOKEN);
@@ -19,12 +18,12 @@ bot.help((ctx) =>
     ctx.reply(`Lista de <b>comandos</b> del Bot @OlivaBiscuitBot:
 /help - obtener ayuda
 /fight - lucha contra Biscuit Oliva
-/resetpole - comando de prueba
 /reflexion - Oliva te inspira con una frase motivacional
 /rutina - muestra las mejores rutinas de gimnasio de Oliva
 
 Cada día, podrás hacer una <b>pole</b>, <b>subpole</b> o <b>fail</b>. Estas se resetean a las 00:00.
-/polerank - ranking de las poles`
+/polerank - ranking de las poles
+/mypoints - muestra cuantos Giga-Puntos tienes`
     , {parse_mode: 'HTML'})
 );
 
@@ -68,9 +67,9 @@ bot.command('fight', async (ctx) => {
     }
 
     combateEnCurso=true;
-    let turnoJugador=false;
-    let jugadorPuntos=0;
-    let olivaPuntos=0;
+    turnoJugador=false;
+    jugadorPuntos=0;
+    olivaPuntos=0;
 
     ctx.reply('🚨🚨 COMIENZA LA LUCHA 🚨🚨');
     turnoDeOliva(ctx);
@@ -416,7 +415,7 @@ bot.command('polerank', async (ctx) => {
             ctx.reply('*Nadie ha hecho ninguna pole todavía*', {parse_mode: 'Markdown'});
 
         } else {
-            let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n---------------------------------------------------';
+            let mensaje='🏆 *RANKING DE LAS POLES* 🏆\n--------------------------------------------------';
             let contRank=0;
            
             const consulta=`SELECT USERNAME, NOMBRE, SUM(PUNTOS) AS TOTAL_PUNTOS 
@@ -580,7 +579,6 @@ bot.command('rutina', (ctx) => {
     numero=Math.floor(Math.random()*listaRutinas.length);
     ctx.reply(`${listaRutinas[numero]}`, {parse_mode: 'Markdown'});
 });
-
 
 // Iniciar el bot
 bot.launch();
